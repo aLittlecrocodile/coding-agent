@@ -3,7 +3,7 @@ replicaCount: 1
 image:
   repository: ghcr.io/alittlecrocodile/coding-agent
   pullPolicy: IfNotPresent
-  tag: "latest"
+  tag: "e492cef"
 
 imagePullSecrets:
   - name: ghcr-secret
