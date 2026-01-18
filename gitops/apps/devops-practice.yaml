@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: devops-practice
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/aLittlecrocodile/coding-agent.git
+    targetRevision: feature/ai-agent-framework
+    path: helm/devops-practice
+    helm:
+      valueFiles:
+        - values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: devops-practice
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
