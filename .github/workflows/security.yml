@@ -10,7 +10,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  # Convert repository name to lowercase for Docker compatibility
+  IMAGE_NAME: ${{ github.repository_owner }}/coding-agent
 
 jobs:
   scan:
@@ -42,7 +43,7 @@ jobs:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test
           format: 'sarif'
           output: 'trivy-results.sarif'
-          exit-code: '1'
+          exit-code: '0'
           severity: 'CRITICAL,HIGH'
 
       - name: Upload Trivy results to GitHub Security
@@ -50,3 +51,7 @@ jobs:
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
+
+      - name: Check for HIGH/CRITICAL vulnerabilities
+        run: |
+          trivy image --exit-code 1 --severity HIGH,CRITICAL ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test
