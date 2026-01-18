@@ -10,8 +10,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  # Convert repository name to lowercase for Docker compatibility
-  IMAGE_NAME: ${{ github.repository_owner }}/coding-agent
+  # Docker requires lowercase repository names
+  IMAGE_NAME: ${{ lowercase(github.repository) }}
 
 jobs:
   scan:
