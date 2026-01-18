@@ -10,8 +10,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  # Docker requires lowercase repository names
-  IMAGE_NAME: ${{ lowercase(github.repository) }}
+  # Docker requires lowercase - hardcoding since GH username has uppercase
+  IMAGE_NAME: alittlecrocodile/coding-agent
 
 jobs:
   build:
