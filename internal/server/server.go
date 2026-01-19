@@ -1,9 +1,11 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
+	"sync"
 
 	"github.com/aLittlecrocodile/devops-practice/internal/metrics"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -11,8 +13,10 @@ import (
 
 // Server represents the HTTP server
 type Server struct {
-	port string
-	mux  *http.ServeMux
+	port         string
+	mux          *http.ServeMux
+	server       *http.Server
+	shutdownOnce sync.Once
 }
 
 // New creates a new HTTP server
@@ -39,15 +43,28 @@ func (s *Server) middleware(next http.HandlerFunc) http.HandlerFunc {
 		metrics.HTTPInflight.Inc()
 		defer metrics.HTTPInflight.Dec()
 
-		// Track response status
-		status := "200"
-		defer func() {
-			metrics.HTTPRequestsTotal.WithLabelValues(r.Method, r.URL.Path, status).Inc()
-		}()
+		// Wrap response writer to capture status code
+		rw := &responseWriter{ResponseWriter: w}
+		next(rw, r)
 
-		// Call the actual handler
-		next(w, r)
+		// Track response status
+		status := rw.status
+		if status == 0 {
+			status = http.StatusOK
+		}
+		metrics.HTTPRequestsTotal.WithLabelValues(r.Method, r.URL.Path, fmt.Sprintf("%d", status)).Inc()
 	}
+}
+
+// responseWriter wraps http.ResponseWriter to capture status code
+type responseWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.status = code
+	rw.ResponseWriter.WriteHeader(code)
 }
 
 // healthz returns 200 if the server is healthy
@@ -57,7 +74,7 @@ func (s *Server) healthz(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("ok"))
+	_, _ = w.Write([]byte("ok"))
 }
 
 // readyz returns 200 if the server is ready
@@ -67,12 +84,27 @@ func (s *Server) readyz(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("ready"))
+	_, _ = w.Write([]byte("ready"))
 }
 
 // Start starts the HTTP server
 func (s *Server) Start() error {
 	addr := fmt.Sprintf(":%s", s.port)
+	s.server = &http.Server{
+		Addr:    addr,
+		Handler: s.mux,
+	}
 	log.Printf("Server starting on %s", addr)
-	return http.ListenAndServe(addr, s.mux)
+	return s.server.ListenAndServe()
+}
+
+// Shutdown gracefully shuts down the server
+func (s *Server) Shutdown(ctx context.Context) error {
+	s.shutdownOnce.Do(func() {
+		if s.server != nil {
+			log.Printf("Server shutting down")
+			_ = s.server.Shutdown(ctx)
+		}
+	})
+	return nil
 }

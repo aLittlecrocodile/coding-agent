@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -360,14 +361,21 @@ func TestServerStartIntegration(t *testing.T) {
 		t.Errorf("expected body 'ok', got '%s'", string(body))
 	}
 
-	// There's no Shutdown method, so we just verify the server is running
+	// Gracefully shutdown the server
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := s.Shutdown(ctx); err != nil {
+		t.Logf("Shutdown returned error: %v", err)
+	}
+
+	// Wait for server to stop
 	select {
 	case err := <-serverErr:
 		if err != nil && err != http.ErrServerClosed {
 			t.Logf("server exited with error: %v", err)
 		}
-	case <-time.After(200 * time.Millisecond):
-		// Server is still running, which is expected
+	case <-time.After(2 * time.Second):
+		t.Error("server did not shut down in time")
 	}
 }
 
@@ -444,8 +452,22 @@ func TestServerIntegration(t *testing.T) {
 		}
 	}
 
-	// Don't explicitly shut down - let it be cleaned up when test ends
-	_ = serverErr
+	// Gracefully shutdown the server
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := s.Shutdown(ctx); err != nil {
+		t.Logf("Shutdown returned error: %v", err)
+	}
+
+	// Wait for server to stop
+	select {
+	case err := <-serverErr:
+		if err != nil && err != http.ErrServerClosed {
+			t.Logf("server exited with error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Error("server did not shut down in time")
+	}
 }
 
 // Benchmark tests
